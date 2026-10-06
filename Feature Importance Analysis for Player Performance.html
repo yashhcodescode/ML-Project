@@ -1,0 +1,2420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Feature Importance Analysis for Player Performance</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<style>
+:root {
+  box-sizing: border-box;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --border: #e2e8f0;
+  --border-focus: #94a3b8;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: #eff6ff;
+  --primary-border: #bfdbfe;
+  --rf: #2563eb;
+  --xg: #d97706;
+  --low: #ef4444;
+  --med: #64748b;
+  --high: #10b981;
+  --shadow-sm: 0 1px 2px rgba(15,23,42,0.05);
+  --shadow: 0 4px 16px -2px rgba(15,23,42,0.06), 0 2px 6px -1px rgba(15,23,42,0.04);
+  --shadow-lg: 0 12px 32px -4px rgba(15,23,42,0.10);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 9999px;
+  --font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+body.dark {
+  --bg: #0b0f19;
+  --surface: #111827;
+  --surface-2: #1e293b;
+  --surface-3: #334155;
+  --border: #1e293b;
+  --border-focus: #475569;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --primary: #38bdf8;
+  --primary-hover: #0284c7;
+  --primary-light: rgba(56,189,248,0.12);
+  --primary-border: rgba(56,189,248,0.3);
+  --rf: #38bdf8;
+  --xg: #fbbf24;
+  --low: #f87171;
+  --med: #94a3b8;
+  --high: #34d399;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow: 0 4px 20px -2px rgba(0,0,0,0.4);
+  --shadow-lg: 0 12px 36px -4px rgba(0,0,0,0.6);
+}
+
+*, *:before, *:after { box-sizing: inherit; }
+html {
+  background: #ffffff;
+}
+
+body {
+  margin: 0;
+  background: #ffffff;
+  color: var(--text);
+  font: 400 15px/1.6 var(--font);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Background Atmosphere */
+.bg-ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background: #ffffff;
+}
+body.dark .bg-ambient {
+  background: #0b0f19;
+}
+
+/* Top Progress Bar */
+#prog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--rf), var(--xg), var(--high));
+  transform-origin: left;
+  transform: scaleX(0);
+  z-index: 100;
+  transition: transform 0.08s ease-out;
+}
+
+/* Modern Header & Navigation */
+header.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+body.dark header.site-header {
+  background: rgba(11, 15, 25, 0.85);
+}
+
+.header-inner {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  color: var(--text);
+  white-space: nowrap;
+}
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--rf), var(--xg));
+  color: #fff;
+  font-size: 1rem;
+}
+
+nav.nav-links {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 4px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  margin: 0 16px;
+}
+nav.nav-links::-webkit-scrollbar { display: none; }
+
+nav.nav-links a {
+  position: relative;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.84rem;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  transition: color 0.2s ease, background-color 0.2s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+nav.nav-links a:hover {
+  color: var(--text);
+}
+nav.nav-links a.on {
+  color: var(--primary);
+  background: var(--surface);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-icon:hover {
+  color: var(--text);
+  border-color: var(--border-focus);
+  background: var(--surface-2);
+}
+
+.btn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-pill:hover {
+  border-color: var(--border-focus);
+  background: var(--surface-2);
+}
+.btn-pill.primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(37,99,235,0.25);
+}
+.btn-pill.primary:hover {
+  background: var(--primary-hover);
+  box-shadow: 0 4px 12px rgba(37,99,235,0.35);
+}
+
+/* Sections Layout */
+section {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 72px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Stable Reveal Animation (Zero layout jitter) */
+section.rv {
+  opacity: 0.05;
+  transform: translateY(12px);
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+}
+section.rv.in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.badge.blue {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary-border);
+}
+.badge.gold {
+  background: rgba(217,119,6,0.12);
+  color: var(--xg);
+  border-color: rgba(217,119,6,0.25);
+}
+.badge.green {
+  background: rgba(16,185,129,0.12);
+  color: var(--high);
+  border-color: rgba(16,185,129,0.25);
+}
+
+h1 {
+  font-size: 2.6rem;
+  line-height: 1.18;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0 0 14px;
+  color: var(--text);
+}
+h2 {
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 0 0 10px;
+}
+p.sub {
+  font-size: 1.05rem;
+  color: var(--text-muted);
+  margin: 0 0 24px;
+  max-width: 75ch;
+}
+p.note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 10px 0 0;
+  line-height: 1.5;
+}
+
+/* Grids */
+.g2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.g3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.g12 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr);
+  gap: 24px;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 36px;
+  align-items: center;
+}
+
+@media (max-width: 960px) {
+  .g2, .g3, .g12, .hero-grid { grid-template-columns: 1fr; }
+  h1 { font-size: 2.1rem; }
+  h2 { font-size: 1.5rem; }
+  nav.nav-links { display: none; }
+}
+
+/* Panels & Cards */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: var(--shadow);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease;
+  position: relative;
+}
+.panel:hover {
+  border-color: var(--border-focus);
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.panel-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 0;
+}
+
+/* Fact Stats Grid */
+.facts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-top: 32px;
+}
+.fact-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+.fact-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary-border);
+  box-shadow: var(--shadow);
+}
+.fact-card .val {
+  display: block;
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.2;
+}
+.fact-card .val.rf { color: var(--rf); }
+.fact-card .val.xg { color: var(--xg); }
+.fact-card .lbl {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Controls & Segmented Buttons */
+.ctl-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 16px 0 20px;
+}
+.ctl-bar label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  gap: 2px;
+}
+.seg button {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.seg button:hover {
+  color: var(--text);
+}
+.seg button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+  font-weight: 700;
+}
+body.dark .seg button[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+/* Charts */
+.ch {
+  width: 100%;
+  height: calc(var(--h, 360px) * var(--scale, 1));
+  min-height: 240px;
+}
+
+/* Tables */
+.data-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+table.styled-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+table.styled-table th {
+  background: var(--surface-2);
+  padding: 10px 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+table.styled-table th:first-child { text-align: left; }
+table.styled-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  color: var(--text);
+}
+table.styled-table td:first-child { text-align: left; font-weight: 600; }
+table.styled-table tr:last-child td { border-bottom: 0; }
+table.styled-table tr:hover td { background: var(--surface-2); }
+
+/* Interactive Confusion Matrix Grid */
+.cm-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 6px;
+  margin-top: 8px;
+}
+.cm-table th {
+  padding: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-align: center;
+}
+.cm-table td.cell {
+  padding: 16px 8px;
+  text-align: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+}
+.cm-table td.cell:hover {
+  transform: scale(1.04);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 2;
+}
+.cm-table .cm-num {
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.cm-table .cm-pct {
+  font-size: 0.74rem;
+  opacity: 0.8;
+  margin-top: 4px;
+}
+
+/* Performance Engine Interactive Components */
+.score-display-card {
+  text-align: center;
+  padding: 24px 16px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.score-number {
+  font-size: 3.4rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  margin: 10px 0 6px;
+}
+.badge-tier {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.engine-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 100px 90px;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+@media (max-width: 640px) {
+  .engine-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+.engine-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.preset-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 18px;
+}
+.preset-chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.preset-chip:hover {
+  color: var(--text);
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+/* Feature Inspector Pill */
+.meter-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  overflow: hidden;
+  position: relative;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Pipeline Stage Stepper */
+.stepper-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.stepper-btn {
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stepper-btn .step-idx {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+.stepper-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-focus);
+}
+.stepper-btn[aria-pressed="true"] {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 4px 14px rgba(37,99,235,0.25);
+}
+
+/* Floating Navigation Dots */
+#nav-dots {
+  position: fixed;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+#nav-dots a {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: all 0.2s ease;
+  position: relative;
+  cursor: pointer;
+}
+#nav-dots a.on {
+  background: var(--primary);
+  transform: scale(1.4);
+}
+#nav-dots a::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+#nav-dots a:hover::after {
+  opacity: 1;
+}
+@media (max-width: 1080px) {
+  #nav-dots { display: none; }
+}
+
+/* Back To Top Button */
+#btn-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 45;
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: all 0.25s ease;
+}
+#btn-top.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+#btn-top:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  transform: translateY(-3px);
+}
+
+/* Code & Details */
+details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  background: var(--surface);
+}
+summary {
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+details[open] summary {
+  margin-bottom: 10px;
+  color: var(--primary);
+}
+code, .mono {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+/* Footer */
+footer {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+/* Modal for Confusion Matrix / Details */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-width: 540px;
+  width: 100%;
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+  transform: scale(0.96);
+  transition: transform 0.2s ease;
+}
+.modal-overlay.open .modal-box {
+  transform: scale(1);
+}
+
+/* Search input */
+.search-input {
+  width: 100%;
+  max-width: 280px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+.search-input:focus {
+  outline: 2px solid var(--primary-border);
+  border-color: var(--primary);
+}
+</style>
+</head>
+<body>
+<div class="bg-ambient"></div>
+<div id="prog"></div>
+
+<!-- Top Sticky Header -->
+<header class="site-header">
+  <div class="header-inner">
+    <a href="#overview" class="brand">
+      <span class="brand-badge">⚽</span>
+      <span>Player ML Intelligence</span>
+    </a>
+
+    <nav class="nav-links" id="main-nav">
+      <a href="#overview" class="on">Overview</a>
+      <a href="#dataset">Dataset</a>
+      <a href="#engine">Score Engine</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#models">Model Lab</a>
+      <a href="#features">Feature Intelligence</a>
+      <a href="#evaluation">Evaluation</a>
+      <a href="#methodology">Methodology</a>
+    </nav>
+
+    <div class="header-actions">
+      <button class="btn-icon" id="theme-toggle" title="Toggle Light / Dark Mode" aria-label="Toggle theme">
+        <span id="theme-icon">🌙</span>
+      </button>
+      <button class="btn-pill primary" id="btn-expo">Expo Mode</button>
+    </div>
+  </div>
+</header>
+
+<div id="nav-dots"></div>
+<button id="btn-top" title="Back to top" aria-label="Back to top">↑</button>
+
+<!-- Section 0: Overview -->
+<section id="overview" class="rv in">
+  <div class="hero-grid">
+    <div>
+      <div class="badge blue">Multi-Class Classification • Top 5 European Leagues</div>
+      <h1>Feature Importance Analysis for Player Performance</h1>
+      <p class="sub">Comparing Random Forest vs XGBoost models predicting 3-tier performance classes (Low, Medium, High) from 23 ball-activity and playing-time metrics across 14,589 player-seasons.</p>
+      
+      <div class="ctl-bar" style="margin-top:20px">
+        <button class="btn-pill primary" onclick="navTo('features')">Explore Feature Importance →</button>
+        <button class="btn-pill" onclick="navTo('engine')">Interactive Score Simulator</button>
+      </div>
+
+      <p class="note"><strong>Key Finding:</strong> <code>PPA</code> (Passes into Penalty Area) and <code>PassLive</code> (Live-ball passes) dominate both tree-based models, accounting for over 23% of total decision weight in XGBoost.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h3 class="panel-title">Top 8 Features by Average Importance</h3>
+        <span class="badge">RF + XGBoost</span>
+      </div>
+      <div id="ch-ov" class="ch" style="--h:360px"></div>
+    </div>
+  </div>
+
+  <div class="facts-grid" id="stats-grid"></div>
+</section>
+
+<!-- Section 1: Dataset Explorer -->
+<section id="dataset" class="rv">
+  <div class="badge">01 Data Foundation</div>
+  <h2>Dataset Explorer & Aggregation Journey</h2>
+  <p class="sub">Source: <code>All_Players_1992-2025.csv</code>. High-fidelity tracking across Premier League, La Liga, Serie A, Bundesliga, and Ligue 1.</p>
+
+  <div class="g2">
+    <div class="panel">
+      <div class="panel-header">
+        <h3 class="panel-title">Data Funnel: Filtering Pipeline</h3>
+        <span class="badge blue">92,170 → 14,589 rows</span>
+      </div>
+      <div id="funnel-container" style="display:flex;flex-direction:column;gap:12px;margin-top:8px"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h3 class="panel-title">Rows per Season (Before 450-Min Filter)</h3>
+        <div class="seg" id="seg-season"></div>
+      </div>
+      <div id="ch-season" class="ch" style="--h:280px"></div>
+      <p class="note" id="season-desc"></p>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:24px">
+    <div class="panel-header">
+      <div>
+        <h3 class="panel-title">Class Distribution (Low / Medium / High)</h3>
+        <p class="note" style="margin:2px 0 0">Balanced 25% / 50% / 25% percentile distribution partitioned by position or split</p>
+      </div>
+      <div class="ctl-bar" style="margin:0">
+        <label>Filter By:</label>
+        <div class="seg" id="seg-class-filter"></div>
+      </div>
+    </div>
+    <div class="g12">
+      <div>
+        <p id="class-desc" style="font-size:0.95rem;line-height:1.6"></p>
+        <div id="class-breakdown-chips" style="display:flex;flex-direction:column;gap:8px;margin-top:16px"></div>
+      </div>
+      <div id="ch-class" class="ch" style="--h:280px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2: Performance Score Engine -->
+<section id="engine" class="rv">
+  <div class="badge gold">02 Ground Truth Generation</div>
+  <h2>Performance Score Engine & Radar Simulator</h2>
+  <p class="sub">How player targets are established. Each stat input represents the player's percentile (0 to 100%) against all players at the same position in that season.</p>
+
+  <div class="ctl-bar">
+    <label>Position Archetype:</label>
+    <div class="seg" id="seg-engine-pos"></div>
+    <button class="btn-pill" id="btn-reset-sliders">Reset All (50)</button>
+    <button class="btn-pill" id="btn-random-sliders">Randomize Profile</button>
+  </div>
+
+  <div class="preset-chip-list" id="engine-presets"></div>
+
+  <div class="g12">
+    <!-- Live Score & Radar Card -->
+    <div class="panel">
+      <div class="score-display-card">
+        <span class="badge" id="engine-pos-name">Forward (FW)</span>
+        <div class="score-number" id="calc-score">50.0</div>
+        <div style="margin:6px 0 14px">
+          <span class="badge-tier" id="calc-tier">Medium Tier</span>
+        </div>
+        <div id="score-spectrum-bar" style="height:12px;border-radius:6px;display:flex;position:relative;margin:12px 0 6px;overflow:hidden"></div>
+        <p class="note" id="threshold-caption" style="margin:8px 0 0"></p>
+      </div>
+
+      <div style="margin-top:16px">
+        <div class="panel-header" style="margin-bottom:4px">
+          <h4 style="margin:0;font-size:0.88rem;color:var(--text-muted)">Live Attribute Radar</h4>
+        </div>
+        <div id="ch-engine-radar" class="ch" style="--h:260px"></div>
+      </div>
+    </div>
+
+    <!-- Sliders Column -->
+    <div class="panel">
+      <div class="panel-header">
+        <h3 class="panel-title">Component Percentile Inputs</h3>
+        <span class="note">Sum of (Weight × Percentile)</span>
+      </div>
+      <div id="engine-sliders-container"></div>
+      <p class="note" style="margin-top:14px"><strong>Leakage Prevention:</strong> These raw component statistics are strictly excluded from the 23 ML model input features, forcing the models to infer performance indirectly from broader ball movement and activity patterns.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3: ML Pipeline -->
+<section id="pipeline" class="rv">
+  <div class="badge">03 Workflow Architecture</div>
+  <h2>12-Stage Machine Learning Pipeline</h2>
+  <p class="sub">Click any stage to view data transformation, formulas, and leakage prevention mechanisms.</p>
+
+  <div class="stepper-nav" id="pipeline-stepper"></div>
+
+  <div class="panel" id="pipeline-detail-panel">
+    <div class="panel-header">
+      <div id="step-badge" class="badge blue">Stage 1 of 12</div>
+      <div class="ctl-bar" style="margin:0">
+        <button class="btn-pill" id="step-prev">← Previous</button>
+        <button class="btn-pill" id="step-next">Next Stage →</button>
+      </div>
+    </div>
+    <h3 id="step-title" style="font-size:1.3rem;margin:4px 0 10px"></h3>
+    <div id="step-meta" class="mono" style="margin-bottom:12px;color:var(--primary)"></div>
+    <p id="step-desc" style="font-size:1rem;line-height:1.6"></p>
+  </div>
+</section>
+
+<!-- Section 4: Model Lab -->
+<section id="models" class="rv">
+  <div class="badge blue">04 Random Forest vs XGBoost</div>
+  <h2>Model Lab & Architecture Comparison</h2>
+  <p class="sub">Head-to-head performance on 1,793 test samples (2024–2025 season). Click any matrix cell to open the Error Breakdown inspector.</p>
+
+  <div class="ctl-bar">
+    <label>Model View:</label>
+    <div class="seg" id="seg-model-view"></div>
+  </div>
+
+  <div id="model-lab-container"></div>
+</section>
+
+<!-- Section 5: Feature Intelligence -->
+<section id="features" class="rv">
+  <div class="badge gold">05 Feature Weights & Interpretability</div>
+  <h2>Feature Intelligence & Agreement Analysis</h2>
+  <p class="sub">Detailed breakdown of all 23 features. Inspect where Random Forest and XGBoost agree and where their decision splits diverge.</p>
+
+  <div class="ctl-bar">
+    <label>View Mode:</label>
+    <div class="seg" id="seg-fi-view"></div>
+
+    <label>Model Filter:</label>
+    <div class="seg" id="seg-fi-model"></div>
+
+    <label>Sort By:</label>
+    <div class="seg" id="seg-fi-rank"></div>
+
+    <label>Count:</label>
+    <div class="seg" id="seg-fi-n"></div>
+
+    <input type="text" class="search-input" id="fi-search" placeholder="Search feature (e.g. PPA, Min)...">
+  </div>
+
+  <div class="panel">
+    <div id="ch-fi" class="ch" style="--h:520px"></div>
+    <div id="fi-table-wrap" style="display:none;margin-top:16px"></div>
+  </div>
+  
+  <p class="note" id="fi-notes"></p>
+
+  <!-- Feature Inspector Spotlight Card -->
+  <div class="panel" id="fi-spotlight" style="margin-top:20px"></div>
+</section>
+
+<!-- Section 6: Model Evaluation -->
+<section id="evaluation" class="rv">
+  <div class="badge green">06 Generalization & Diagnostic Metrics</div>
+  <h2>Model Evaluation & Error Distribution</h2>
+  <p class="sub">Evaluated strictly on the held-out 2024–2025 season (1,793 player-seasons: 446 Low, 907 Medium, 440 High).</p>
+
+  <div class="g2">
+    <div class="panel">
+      <div class="panel-header">
+        <h3 class="panel-title">Overall Accuracy Comparison</h3>
+        <span class="badge blue">Test Set</span>
+      </div>
+      <div id="ch-acc" class="ch" style="--h:300px"></div>
+      <p class="note">XGBoost achieves 67.21% vs Random Forest 65.37%, an edge of 33 additional correct classifications across 1,793 players.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h3 class="panel-title">Class-by-Class Metric Comparison</h3>
+        <div class="seg" id="seg-eval-metric"></div>
+      </div>
+      <div id="ch-prf" class="ch" style="--h:270px"></div>
+      <p class="note">Both models demonstrate their highest recall in the Medium class (~80%), with High being the hardest class to isolate without false negatives.</p>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:24px">
+    <div class="panel-header">
+      <h3 class="panel-title">Interactive Confusion Matrix Heatmap</h3>
+      <div class="seg" id="seg-cm-model"></div>
+    </div>
+    <div id="ch-cm" class="ch" style="--h:380px"></div>
+    <p class="note">Near-zero extreme errors: Random Forest misclassified Low as High only twice (0.4%), and XGBoost only once (0.2%).</p>
+  </div>
+</section>
+
+<!-- Section 7: Insights & Methodology -->
+<section id="methodology" class="rv">
+  <div class="badge">07 Academic Documentation</div>
+  <h2>Methodology, Limitations & Governance</h2>
+  <div class="g2">
+    <div>
+      <details open>
+        <summary>Data Cleaning & Feature Filtering</summary>
+        <p>Seasons 2017–2018 through 2024–2025 across five European top flights. Restricted to players with primary positions Forward (FW), Midfielder (MF), or Defender (DF). Applied a minimum threshold of 450 minutes per player-club stint to filter out transient bench appearances.</p>
+      </details>
+      <details open>
+        <summary>Feature Leakage Safeguards</summary>
+        <p>Target performance scores are constructed from weighted percentile rankings of core counting statistics (Goals, Assists, xG, Key Passes, Tackles Won). All direct score ingredients are strictly eliminated from the 23 model input features, forcing classifiers to rely on proxy activity metrics.</p>
+      </details>
+      <details>
+        <summary>Model Hyperparameters</summary>
+        <p class="mono">RandomForestClassifier: n_estimators=300, max_depth=None, min_samples_split=5, min_samples_leaf=2, class_weight='balanced', random_state=42</p>
+        <p class="mono" style="margin-top:6px">XGBClassifier: n_estimators=300, max_depth=6, learning_rate=0.05, subsample=0.8, colsample_bytree=0.8, objective='multi:softmax', num_class=3, random_state=42</p>
+      </details>
+    </div>
+    <div>
+      <details open>
+        <summary>Critical Limitations</summary>
+        <ul>
+          <li><strong>Single Split:</strong> Uses a single temporal train/test split without k-fold cross-validation; the 1.84% accuracy gap has not been tested for statistical significance.</li>
+          <li><strong>Multicollinearity:</strong> Minutes (<code>Min</code>) and 90s (<code>90s</code>) contain identical information, splitting importance weights between them.</li>
+          <li><strong>Position-Blind Inputs:</strong> Position is not provided as a feature to the models, even though class thresholds are position-relative.</li>
+          <li><strong>Correlation ≠ Causation:</strong> High feature importance reflects tree split utility, not player ability causation.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Terms & Educational Disclaimer</summary>
+        <p class="note">Produced for educational demonstration and machine learning research based on notebook <code>ML_Project (3).ipynb</code>. Not intended for commercial player scouting, contract valuation, or sports betting decisions.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div>Student ML Project • Machine Learning in Football Analytics</div>
+  <div>Notebook: <code>ML_Project (3).ipynb</code> • European Top 5 Leagues</div>
+</footer>
+
+<!-- Interactive Error Modal -->
+<div class="modal-overlay" id="error-modal">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 id="modal-title" style="margin:0">Confusion Matrix Cell Inspector</h3>
+      <button class="btn-icon" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+    <div style="margin-top:20px;text-align:right">
+      <button class="btn-pill primary" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   CORE DATA STRUCTURES (EXACT REPLICAS FROM ORIGINAL NOTEBOOK)
+   ===================================================================== */
+const API_BASE = "";
+const RF = "#2563eb", XG = "#d97706";
+const LAB = ["Low", "Medium", "High"];
+const LC = ["#ef4444", "#64748b", "#10b981"];
+
+const FI = [
+  { f: "PPA", rf: .094684, xg: .164647, cat: "Attacking", name: "Passes into Penalty Area", desc: "Completed passes into the 18-yard box (excluding set pieces)." },
+  { f: "PassLive", rf: .084932, xg: .070444, cat: "Passing", name: "Live-Ball Passes", desc: "Pass attempts executed during open play." },
+  { f: "PrgDist", rf: .054361, xg: .053023, cat: "Passing", name: "Progressive Pass Distance", desc: "Total distance completed passes traveled toward opponent's goal (yards)." },
+  { f: "Att", rf: .057918, xg: .046481, cat: "Passing", name: "Pass Attempts", desc: "Total passes attempted across all ranges." },
+  { f: "Crs", rf: .060344, xg: .040769, cat: "Attacking", name: "Crosses", desc: "Total deliveries from wide areas into the box." },
+  { f: "90s", rf: .049040, xg: .047163, cat: "Playing Time", name: "90s Played", desc: "Total minutes divided by 90." },
+  { f: "Min", rf: .048148, xg: .047809, cat: "Playing Time", name: "Minutes Played", desc: "Total minutes logged on the pitch." },
+  { f: "PassDead", rf: .035667, xg: .048291, cat: "Passing", name: "Dead-Ball Passes", desc: "Free kicks, corners, throw-ins, goal kicks, kick-offs." },
+  { f: "Touches", rf: .044049, xg: .038812, cat: "Possession", name: "Touches", desc: "Number of times a player contacted the ball." },
+  { f: "Recov", rf: .041819, xg: .037524, cat: "Defensive", name: "Loose Ball Recoveries", desc: "Number of loose balls regained in live play." },
+  { f: "MP", rf: .032455, xg: .045166, cat: "Playing Time", name: "Matches Played", desc: "Matches in which the player made an appearance." },
+  { f: "Rec", rf: .042714, xg: .031864, cat: "Possession", name: "Passes Received", desc: "Number of times the player controlled a pass." },
+  { f: "TotDist", rf: .040304, xg: .031287, cat: "Passing", name: "Total Pass Distance", desc: "Cumulative distance of all completed passes." },
+  { f: "Starts", rf: .030461, xg: .040873, cat: "Playing Time", name: "Starts", desc: "Matches in the starting XI." },
+  { f: "CrsPA", rf: .036638, xg: .034481, cat: "Attacking", name: "Crosses into 18-Yard Box", desc: "Crosses successfully delivered into the penalty area." },
+  { f: "Carries", rf: .041325, xg: .028045, cat: "Possession", name: "Carries", desc: "Number of times the player controlled the ball with their feet." },
+  { f: "Cmp", rf: .037822, xg: .028765, cat: "Passing", name: "Passes Completed", desc: "Accurate passes reaching a teammate." },
+  { f: "Dis", rf: .035481, xg: .029246, cat: "Possession", name: "Dispossessed", desc: "Tackled and lost possession without a pass." },
+  { f: "Fls", rf: .035698, xg: .026974, cat: "Defensive", name: "Fouls Committed", desc: "Total fouls committed by the player." },
+  { f: "Age", rf: .028874, xg: .028786, cat: "Playing Time", name: "Age", desc: "Player age during the competitive season." },
+  { f: "Off", rf: .021042, xg: .030916, cat: "Attacking", name: "Offsides", desc: "Number of times caught in an offside position." },
+  { f: "unSub", rf: .022872, xg: .024618, cat: "Playing Time", name: "Unused Substitute", desc: "Matches spent on bench without playing." },
+  { f: "Subs", rf: .023356, xg: .024015, cat: "Playing Time", name: "Subbed On", desc: "Matches entered as a substitute." }
+].map(r => ({ ...r, av: (r.rf + r.xg) / 2 }));
+
+const M = {
+  rf: { n: "Random Forest", c: RF, acc: 65.37, k: "rf", cls: [[.65,.55,.60],[.63,.78,.70],[.73,.49,.59]], mac: [.67,.61,.63], wt: [.66,.65,.65], cm: [[245,199,2],[119,711,77],[11,213,216]] },
+  xg: { n: "XGBoost", c: XG, acc: 67.21, k: "xg", cls: [[.68,.57,.62],[.64,.81,.72],[.77,.50,.61]], mac: [.70,.63,.65], wt: [.68,.67,.67], cm: [[253,192,1],[110,731,66],[7,212,221]] }
+};
+
+const SEAS = [
+  ["2017-2018", 2815], ["2018-2019", 2760], ["2019-2020", 2884],
+  ["2020-2021", 3052], ["2021-2022", 3189], ["2022-2023", 3124],
+  ["2023-2024", 3113], ["2024-2025", 3097]
+];
+
+const CLS = {
+  All: [3646, 7303, 3640],
+  FW: [877, 1789, 876],
+  MF: [1255, 2484, 1252],
+  DF: [1514, 3030, 1512],
+  Train: [3200, 6396, 3200],
+  Test: [446, 907, 440]
+};
+
+const GN = {
+  All: "All 14,589 player-seasons across 8 seasons in top 5 leagues.",
+  FW: "3,542 forward player-seasons.",
+  MF: "4,991 midfielder player-seasons.",
+  DF: "6,056 defender player-seasons.",
+  Train: "12,796 training player-seasons (2017–2018 through 2023–2024).",
+  Test: "1,793 test player-seasons (2024–2025 held-out season)."
+};
+
+const THR = { FW: [37.2, 61.66], MF: [36.44, 63.3], DF: [39.41, 60.68] };
+const PN = { FW: "Forward", MF: "Midfielder", DF: "Defender" };
+
+const W = {
+  FW: [
+    ["Gls_90", "Goals / 90", 25],
+    ["xG_90", "Expected Goals / 90", 20],
+    ["Ast_90", "Assists / 90", 15],
+    ["xA_90", "Expected Assists / 90", 15],
+    ["SCA_90", "Shot-Creating Actions / 90", 15],
+    ["PrgC_90", "Progressive Carries / 90", 10]
+  ],
+  MF: [
+    ["Ast_90", "Assists / 90", 15],
+    ["xA_90", "Expected Assists / 90", 15],
+    ["KP_90", "Key Passes / 90", 15],
+    ["PrgP_90", "Progressive Passes / 90", 20],
+    ["SCA_90", "Shot-Creating Actions / 90", 15],
+    ["TklW_90", "Tackles Won / 90", 10],
+    ["Int_90", "Interceptions / 90", 10]
+  ],
+  DF: [
+    ["TklInt_90", "Tackles + Interceptions / 90", 25],
+    ["Clr_90", "Clearances / 90", 15],
+    ["Blocks_90", "Blocks / 90", 10],
+    ["PrgP_90", "Progressive Passes / 90", 15],
+    ["PrgC_90", "Progressive Carries / 90", 15],
+    ["SCA_90", "Shot-Creating Actions / 90", 10],
+    ["TklW_90", "Tackles Won / 90", 10]
+  ]
+};
+
+const PRESETS = {
+  FW: [
+    { name: "Clinical Poacher", vals: { Gls_90: 95, xG_90: 92, Ast_90: 40, xA_90: 35, SCA_90: 60, PrgC_90: 50 } },
+    { name: "Creative Playmaker Winger", vals: { Gls_90: 65, xG_90: 60, Ast_90: 92, xA_90: 95, SCA_90: 94, PrgC_90: 88 } },
+    { name: "Hard-Working Presser", vals: { Gls_90: 45, xG_90: 50, Ast_90: 40, xA_90: 45, SCA_90: 55, PrgC_90: 65 } },
+    { name: "Struggling Striker", vals: { Gls_90: 20, xG_90: 25, Ast_90: 15, xA_90: 20, SCA_90: 30, PrgC_90: 25 } }
+  ],
+  MF: [
+    { name: "Deep-Lying Regista", vals: { Ast_90: 75, xA_90: 80, KP_90: 88, PrgP_90: 96, SCA_90: 82, TklW_90: 55, Int_90: 60 } },
+    { name: "Box-to-Box Engine", vals: { Ast_90: 65, xA_90: 60, KP_90: 70, PrgP_90: 80, SCA_90: 75, TklW_90: 85, Int_90: 80 } },
+    { name: "Defensive Anchor", vals: { Ast_90: 25, xA_90: 20, KP_90: 35, PrgP_90: 60, SCA_90: 40, TklW_90: 96, Int_90: 94 } },
+    { name: "Attacking No. 10", vals: { Ast_90: 90, xA_90: 92, KP_90: 94, PrgP_90: 85, SCA_90: 92, TklW_90: 30, Int_90: 30 } }
+  ],
+  DF: [
+    { name: "Ball-Playing Centre Back", vals: { TklInt_90: 70, Clr_90: 65, Blocks_90: 60, PrgP_90: 92, PrgC_90: 85, SCA_90: 65, TklW_90: 70 } },
+    { name: "Traditional Stopper", vals: { TklInt_90: 94, Clr_90: 96, Blocks_90: 90, PrgP_90: 35, PrgC_90: 30, SCA_90: 25, TklW_90: 92 } },
+    { name: "Overlapping Wingback", vals: { TklInt_90: 65, Clr_90: 40, Blocks_90: 45, PrgP_90: 85, PrgC_90: 94, SCA_90: 88, TklW_90: 65 } },
+    { name: "Reserve Defender", vals: { TklInt_90: 30, Clr_90: 40, Blocks_90: 35, PrgP_90: 25, PrgC_90: 20, SCA_90: 20, TklW_90: 30 } }
+  ]
+};
+
+const STG = [
+  ["Dataset Ingestion", "92,170 rows, 120 columns, 33 seasons", "Raw CSV containing player-club-season rows from Premier League, La Liga, Serie A, Bundesliga, and Ligue 1."],
+  ["Temporal & Position Filter", "24,034 rows retained", "Filtered to modern era (2017-2018 through 2024-2025) and standard outfield positions (FW, MF, DF)."],
+  ["Playing-Time Threshold", "14,812 rows retained", "Enforced Min >= 450 per stint to eliminate transient substitute appearances with noisy per-90 metrics."],
+  ["Player-Season Aggregation", "14,589 unique records", "Summed statistics across clubs for mid-season transfers (handling 223 duplicate rows)."],
+  ["Per-90 Normalization", "14 key rate statistics", "Divided raw counts by 90s (Minutes / 90) to enable fair comparison across players with differing playing time."],
+  ["Percentile Ranking", "rank(pct=True) within season & pos", "Standardized metrics within each player's peer group, removing cross-era tactical score drift."],
+  ["Target Score Synthesis", "0 to 100 Continuous Score", "Position-tailored weighted combination of percentile ranks reflecting football tactical value."],
+  ["Categorical Discretization", "Low (0), Medium (1), High (2)", "Lower quartile (<25th pct) = Low; Upper quartile (>=75th pct) = High; Interquartile = Medium."],
+  ["Temporal Train/Test Split", "12,796 Train / 1,793 Test", "Trained on 2017-18 to 2023-24; strictly held out 2024-25 season as test set to prevent temporal leakage."],
+  ["Feature Leakage Filter", "23 Remaining Features", "Strictly pruned all direct score components. Classifiers predict performance solely from proxy activity."],
+  ["Model Training", "Random Forest & XGBoost", "Trained 300-estimator tree ensembles with balanced weights and regularized gradient boosting."],
+  ["Diagnostic Evaluation", "Accuracy, Precision, Recall, F1", "Comprehensive evaluation on test season, confusion matrix mapping, and feature importance analysis."]
+];
+
+/* =====================================================================
+   HELPER UTILITIES
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const C = {}; // ECharts store
+const fx = (n, d = 0) => Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+function getThemeColors() {
+  const isDark = document.body.classList.contains("dark");
+  return {
+    isDark,
+    text: isDark ? "#f8fafc" : "#0f172a",
+    muted: isDark ? "#94a3b8" : "#64748b",
+    border: isDark ? "#334155" : "#e2e8f0",
+    bg: isDark ? "#111827" : "#ffffff",
+    cardBg: isDark ? "#1e293b" : "#f8fafc",
+    tooltipBg: isDark ? "#1f2937" : "#ffffff",
+    tooltipBorder: isDark ? "#374151" : "#e2e8f0"
+  };
+}
+
+function ch(id, opt) {
+  const el = $(id);
+  if (!el) return;
+  if (C[id] && C[id].getDom() !== el) {
+    C[id].dispose();
+    delete C[id];
+  }
+  const c = C[id] || (C[id] = echarts.init(el, null, { renderer: "svg" }));
+  const theme = getThemeColors();
+  
+  const base = {
+    textStyle: { fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", color: theme.text },
+    tooltip: {
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.tooltipBorder,
+      textStyle: { color: theme.text, fontSize: 13 },
+      extraCssText: "box-shadow: 0 6px 20px rgba(0,0,0,0.15); border-radius: 8px; border: 1px solid " + theme.tooltipBorder
+    }
+  };
+  c.setOption(Object.assign(base, opt), true);
+}
+
+function seg(id, opts, cur, cb) {
+  const el = $(id);
+  if (!el) return;
+  const render = () => {
+    el.innerHTML = opts.map(o => `<button data-v="${o[0]}" aria-pressed="${o[0] == cur}">${o[1]}</button>`).join("");
+  };
+  render();
+  el.onclick = e => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    cur = btn.dataset.v;
+    render();
+    cb(cur);
+  };
+}
+
+/* =====================================================================
+   SMOOTH NAVIGATION (NO TWEAKING / NO SCROLL JUDDER)
+   ===================================================================== */
+function navTo(targetId) {
+  const el = $(targetId);
+  if (!el) return;
+  const headerHeight = document.querySelector(".site-header").offsetHeight || 64;
+  const targetTop = el.getBoundingClientRect().top + window.pageYOffset - headerHeight - 10;
+  window.scrollTo({ top: targetTop, behavior: "smooth" });
+}
+
+// Intercept all anchor clicks to use smooth scrolling without hash jumps
+document.addEventListener("click", e => {
+  const a = e.target.closest("a[href^='#']");
+  if (!a) return;
+  const hash = a.getAttribute("href");
+  if (!hash || hash === "#") return;
+  e.preventDefault();
+  const id = hash.slice(1);
+  navTo(id);
+});
+
+// Update navbar active state and horizontal scroll of nav bar ONLY (never window scroll!)
+const navLinks = [...document.querySelectorAll("#main-nav a")];
+const mainNav = $("main-nav");
+let currentActiveId = "overview";
+
+function setActiveNav(id) {
+  if (currentActiveId === id) return;
+  currentActiveId = id;
+
+  navLinks.forEach(link => {
+    const isTarget = link.getAttribute("href") === "#" + id;
+    link.classList.toggle("on", isTarget);
+    if (isTarget && mainNav) {
+      // Gently scroll the horizontal nav container ONLY
+      const offset = link.offsetLeft - (mainNav.clientWidth / 2) + (link.clientWidth / 2);
+      mainNav.scrollTo({ left: offset, behavior: "smooth" });
+    }
+  });
+
+  // Update floating dots
+  document.querySelectorAll("#nav-dots a").forEach(dot => {
+    dot.classList.toggle("on", dot.getAttribute("href") === "#" + id);
+  });
+}
+
+// Single high-performance scroll ticking handler
+let scrollTick = false;
+window.addEventListener("scroll", () => {
+  if (!scrollTick) {
+    requestAnimationFrame(() => {
+      const doc = document.documentElement;
+      const top = doc.scrollTop;
+      const total = doc.scrollHeight - doc.clientHeight || 1;
+      
+      // Update top progress bar
+      $("prog").style.transform = `scaleX(${top / total})`;
+      
+      // Update back to top button
+      $("btn-top").classList.toggle("show", top > 500);
+
+      // Detect current section
+      const sections = document.querySelectorAll("section");
+      let active = "overview";
+      const threshold = window.innerHeight * 0.35;
+      sections.forEach(sec => {
+        const rect = sec.getBoundingClientRect();
+        if (rect.top <= threshold && rect.bottom > threshold) {
+          active = sec.id;
+        }
+      });
+      setActiveNav(active);
+
+      scrollTick = false;
+    });
+    scrollTick = true;
+  }
+}, { passive: true });
+
+$("btn-top").onclick = () => window.scrollTo({ top: 0, behavior: "smooth" });
+
+// Section Intersection Observer (Triggered ONCE without layout shift)
+const secObserver = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add("in");
+      if (entry.target.id === "overview") countUp();
+      secObserver.unobserve(entry.target); // Unobserve to keep DOM stable
+    }
+  });
+}, { threshold: 0.05 });
+
+document.querySelectorAll("section.rv").forEach(sec => secObserver.observe(sec));
+
+// Build Floating Dots
+const sectionsList = [...document.querySelectorAll("section")];
+$("nav-dots").innerHTML = sectionsList.map(s => {
+  const linkMatch = navLinks.find(l => l.getAttribute("href") === "#" + s.id);
+  const title = linkMatch ? linkMatch.textContent : s.id;
+  return `<a href="#${s.id}" data-tooltip="${title}" class="${s.id === 'overview' ? 'on' : ''}"></a>`;
+}).join("");
+
+/* =====================================================================
+   SECTION 0: OVERVIEW & FACTS
+   ===================================================================== */
+function drawOverview() {
+  const top8 = [...FI].sort((a, b) => b.av - a.av).slice(0, 8);
+  const theme = getThemeColors();
+
+  ch("ch-ov", {
+    grid: { left: 10, right: 60, top: 20, bottom: 20, containLabel: true },
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      formatter: a => {
+        const item = top8.find(x => x.f === a[0].name);
+        return `<strong>${item.name} (${item.f})</strong><br>
+                Random Forest: <strong>${item.rf.toFixed(4)}</strong><br>
+                XGBoost: <strong>${item.xg.toFixed(4)}</strong><br>
+                Average Weight: <strong>${item.av.toFixed(4)}</strong>`;
+      }
+    },
+    legend: { top: 0, textStyle: { color: theme.text }, data: ["Random Forest", "XGBoost"] },
+    xAxis: {
+      type: "value",
+      axisLabel: { color: theme.muted },
+      splitLine: { lineStyle: { color: theme.border, type: "dashed" } }
+    },
+    yAxis: {
+      type: "category",
+      inverse: true,
+      data: top8.map(r => r.f),
+      axisLabel: { color: theme.text, fontWeight: 600 }
+    },
+    series: [
+      {
+        name: "Random Forest",
+        type: "bar",
+        data: top8.map(r => r.rf),
+        itemStyle: { color: RF, borderRadius: [0, 4, 4, 0] }
+      },
+      {
+        name: "XGBoost",
+        type: "bar",
+        data: top8.map(r => r.xg),
+        itemStyle: { color: XG, borderRadius: [0, 4, 4, 0] }
+      }
+    ]
+  });
+
+  const stats = [
+    ["92,170", "Raw Stint Rows", ""],
+    ["14,589", "Player-Seasons", ""],
+    ["12,796", "Train Set (17–24)", ""],
+    ["1,793", "Held-Out Test (24–25)", ""],
+    ["23", "Pruned ML Features", ""],
+    ["65.37%", "Random Forest Acc", "rf"],
+    ["67.21%", "XGBoost Acc", "xg"]
+  ];
+  $("stats-grid").innerHTML = stats.map(s => `
+    <div class="fact-card">
+      <span class="val ${s[2]}" data-target="${s[0]}">${s[0]}</span>
+      <span class="lbl">${s[1]}</span>
+    </div>
+  `).join("");
+}
+
+function countUp() {
+  document.querySelectorAll("#stats-grid .val").forEach(el => {
+    const raw = el.dataset.target;
+    const match = raw.match(/^([\d,]+(?:\.\d+)?)(%?)$/);
+    if (!match) return;
+    const end = parseFloat(match[1].replace(/,/g, ""));
+    const decimals = (match[1].split(".")[1] || "").length;
+    const suffix = match[2];
+    const startTime = performance.now();
+    
+    function tick(now) {
+      const progress = Math.min(1, (now - startTime) / 1200);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      el.textContent = fx(end * ease, decimals) + suffix;
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+/* =====================================================================
+   SECTION 1: DATASET EXPLORER
+   ===================================================================== */
+function initDataset() {
+  const funnelSteps = [
+    ["Raw Ingestion", 92170, "100%", "Full historical player-club-season database."],
+    ["Modern Era & Positions", 24034, "26.1%", "2017–2025 seasons, FW/MF/DF primary positions."],
+    ["Min. 450 Minutes Filter", 14812, "16.1%", "Pruned short substitute appearances."],
+    ["Player-Season Aggregated", 14589, "15.8%", "Merged mid-season club transfers."],
+    ["Training Partition", 12796, "13.9%", "2017–2018 to 2023–2024 seasons."],
+    ["Test Evaluation Partition", 1793, "1.9%", "Held-out 2024–2025 season."]
+  ];
+
+  $("funnel-container").innerHTML = funnelSteps.map(step => `
+    <div style="background:var(--surface-2);border-radius:var(--radius-sm);padding:10px 14px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <strong style="font-size:0.88rem">${step[0]}</strong>
+        <span class="mono" style="font-weight:700;color:var(--primary)">${fx(step[1])} <span class="note">(${step[2]})</span></span>
+      </div>
+      <div class="meter-bar">
+        <div class="meter-fill" style="width:${Math.max(step[1] / 921.7, 1.5)}%;background:var(--primary)"></div>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px">${step[3]}</div>
+    </div>
+  `).join("");
+
+  // Season Chart
+  let selSeason = "All";
+  function renderSeasonChart() {
+    const theme = getThemeColors();
+    const curr = SEAS.find(x => x[0] === selSeason);
+    $("season-desc").textContent = curr
+      ? `${curr[0]}: ${fx(curr[1])} player-club stints post-position filter before the 450-min filter.`
+      : "All 8 seasons: 24,034 total player-club stints across the top 5 leagues.";
+
+    ch("ch-season", {
+      grid: { left: 8, right: 16, top: 20, bottom: 30, containLabel: true },
+      tooltip: { trigger: "axis" },
+      xAxis: {
+        type: "category",
+        data: SEAS.map(x => x[0].slice(2)),
+        axisLabel: { color: theme.muted }
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: { color: theme.muted },
+        splitLine: { lineStyle: { color: theme.border, type: "dashed" } }
+      },
+      series: [{
+        type: "bar",
+        data: SEAS.map(x => ({
+          value: x[1],
+          itemStyle: {
+            color: selSeason === "All" || selSeason === x[0] ? RF : theme.border,
+            borderRadius: [4, 4, 0, 0]
+          }
+        })),
+        label: { show: true, position: "top", color: theme.muted, fontSize: 11, formatter: p => fx(p.value) }
+      }]
+    });
+  }
+
+  seg("seg-season", [["All", "All"], ...SEAS.map(x => [x[0], x[0].slice(2)])], "All", v => {
+    selSeason = v;
+    renderSeasonChart();
+  });
+  renderSeasonChart();
+
+  // Class Distribution
+  function renderClassChart(grp) {
+    const theme = getThemeColors();
+    const counts = CLS[grp];
+    const total = counts[0] + counts[1] + counts[2];
+    $("class-desc").textContent = GN[grp];
+
+    $("class-breakdown-chips").innerHTML = LAB.map((label, idx) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:6px;background:var(--surface-2);border-left:4px solid ${LC[idx]}">
+        <span style="font-weight:600">${label}</span>
+        <span class="mono">${fx(counts[idx])} <span class="note">(${fx(100 * counts[idx] / total, 1)}%)</span></span>
+      </div>
+    `).join("");
+
+    ch("ch-class", {
+      grid: { left: 10, right: 60, top: 10, bottom: 20, containLabel: true },
+      tooltip: {
+        trigger: "item",
+        formatter: p => `${p.name}: <strong>${fx(p.value)}</strong> (${fx(100 * p.value / total, 1)}%)`
+      },
+      xAxis: {
+        type: "value",
+        axisLabel: { color: theme.muted },
+        splitLine: { lineStyle: { color: theme.border, type: "dashed" } }
+      },
+      yAxis: {
+        type: "category",
+        inverse: true,
+        data: LAB,
+        axisLabel: { color: theme.text, fontWeight: 600 }
+      },
+      series: [{
+        type: "bar",
+        barMaxWidth: 36,
+        data: counts.map((val, idx) => ({
+          value: val,
+          itemStyle: { color: LC[idx], borderRadius: [0, 4, 4, 0] }
+        })),
+        label: {
+          show: true,
+          position: "right",
+          color: theme.text,
+          fontWeight: 600,
+          formatter: p => `${fx(p.value)} (${fx(100 * p.value / total, 1)}%)`
+        }
+      }]
+    });
+  }
+
+  seg("seg-class-filter", Object.keys(CLS).map(k => [k, k]), "All", renderClassChart);
+  renderClassChart("All");
+}
+
+/* =====================================================================
+   SECTION 2: PERFORMANCE SCORE ENGINE
+   ===================================================================== */
+let enginePos = "FW";
+let enginePercentiles = {};
+
+function initEngine() {
+  function renderPresets() {
+    const list = PRESETS[enginePos] || [];
+    $("engine-presets").innerHTML = `
+      <span style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:flex;align-items:center">Presets:</span>
+      ${list.map((p, idx) => `<button class="preset-chip" data-idx="${idx}">${p.name}</button>`).join("")}
+    `;
+    $("engine-presets").querySelectorAll(".preset-chip").forEach(btn => {
+      btn.onclick = () => {
+        const p = list[+btn.dataset.idx];
+        if (!p) return;
+        Object.entries(p.vals).forEach(([key, val]) => {
+          enginePercentiles[enginePos + key] = val;
+        });
+        renderEngine();
+      };
+    });
+  }
+
+  function renderEngine() {
+    const weights = W[enginePos];
+    const [loThreshold, hiThreshold] = THR[enginePos];
+    let totalScore = 0;
+    const radarValues = [];
+    const radarIndicators = [];
+
+    $("engine-sliders-container").innerHTML = weights.map(item => {
+      const key = enginePos + item[0];
+      const val = enginePercentiles[key] ?? 50;
+      const points = (item[2] / 100) * val;
+      totalScore += points;
+      radarValues.push(val);
+      radarIndicators.push({ name: item[1].split(" / ")[0], max: 100 });
+
+      return `
+        <div class="engine-row">
+          <div>
+            <div style="font-weight:600">${item[1]}</div>
+            <div class="note">${item[2]}% weight</div>
+          </div>
+          <div>
+            <input type="range" min="0" max="100" value="${val}" data-key="${key}">
+          </div>
+          <div class="mono" style="text-align:right">
+            <span style="font-weight:700">${val}</span>th pct
+          </div>
+          <div class="mono" style="text-align:right;color:var(--primary)">
+            +${points.toFixed(1)} pts
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    $("engine-pos-name").textContent = `${PN[enginePos]} Archetype`;
+    $("calc-score").textContent = totalScore.toFixed(1);
+
+    const tierClass = totalScore < loThreshold ? 0 : totalScore >= hiThreshold ? 2 : 1;
+    const tierElem = $("calc-tier");
+    tierElem.textContent = `${LAB[tierClass]} Performance Tier`;
+    tierElem.style.background = tierClass === 0 ? "rgba(239,68,68,0.15)" : tierClass === 2 ? "rgba(16,185,129,0.15)" : "rgba(100,116,139,0.15)";
+    tierElem.style.color = LC[tierClass];
+
+    // Threshold indicator line
+    $("threshold-caption").textContent = `Low: < ${loThreshold.toFixed(1)} | High: ≥ ${hiThreshold.toFixed(1)} (Middle 50% = Medium)`;
+
+    $("score-spectrum-bar").innerHTML = `
+      <span style="width:${loThreshold}%;background:${LC[0]}" title="Low (<${loThreshold})"></span>
+      <span style="width:${hiThreshold - loThreshold}%;background:${LC[1]}" title="Medium"></span>
+      <span style="width:${100 - hiThreshold}%;background:${LC[2]}" title="High (≥${hiThreshold})"></span>
+      <span style="position:absolute;left:${Math.min(99, Math.max(1, totalScore))}%;top:-3px;bottom:-3px;width:3px;background:var(--text);border-radius:2px;box-shadow:0 0 4px rgba(0,0,0,0.5)"></span>
+    `;
+
+    // Radar Chart
+    const theme = getThemeColors();
+    ch("ch-engine-radar", {
+      tooltip: { trigger: "item" },
+      radar: {
+        indicator: radarIndicators,
+        shape: "polygon",
+        radius: "68%",
+        splitNumber: 4,
+        axisName: { color: theme.muted, fontSize: 11, fontWeight: 600 },
+        splitArea: { show: false },
+        splitLine: { lineStyle: { color: theme.border } },
+        axisLine: { lineStyle: { color: theme.border } }
+      },
+      series: [{
+        type: "radar",
+        data: [{
+          value: radarValues,
+          name: "Player Percentiles",
+          symbolSize: 4,
+          itemStyle: { color: RF },
+          areaStyle: { color: "rgba(37,99,235,0.25)" }
+        }]
+      }]
+    });
+
+    // Slider inputs
+    $("engine-sliders-container").querySelectorAll("input[type=range]").forEach(input => {
+      input.oninput = e => {
+        enginePercentiles[e.target.dataset.key] = +e.target.value;
+        renderEngine();
+      };
+    });
+  }
+
+  seg("seg-engine-pos", Object.entries(PN), "FW", pos => {
+    enginePos = pos;
+    renderPresets();
+    renderEngine();
+  });
+
+  $("btn-reset-sliders").onclick = () => {
+    enginePercentiles = {};
+    renderEngine();
+  };
+
+  $("btn-random-sliders").onclick = () => {
+    W[enginePos].forEach(item => {
+      enginePercentiles[enginePos + item[0]] = Math.floor(Math.random() * 85) + 15;
+    });
+    renderEngine();
+  };
+
+  renderPresets();
+  renderEngine();
+}
+
+/* =====================================================================
+   SECTION 3: PIPELINE STEPPER
+   ===================================================================== */
+let activeStage = 0;
+function initPipeline() {
+  function renderStage(idx) {
+    activeStage = idx;
+    $("pipeline-stepper").innerHTML = STG.map((s, i) => `
+      <button class="stepper-btn" data-idx="${i}" aria-pressed="${i === idx}">
+        <span class="step-idx">Step ${i + 1}</span>
+        <span>${s[0]}</span>
+      </button>
+    `).join("");
+
+    $("pipeline-stepper").querySelectorAll("button").forEach(btn => {
+      btn.onclick = () => renderStage(+btn.dataset.idx);
+    });
+
+    $("step-badge").textContent = `Stage ${idx + 1} of 12`;
+    $("step-title").textContent = STG[idx][0];
+    $("step-meta").textContent = STG[idx][1];
+    $("step-desc").textContent = STG[idx][2];
+    $("step-prev").disabled = idx === 0;
+    $("step-next").disabled = idx === STG.length - 1;
+  }
+
+  $("step-prev").onclick = () => { if (activeStage > 0) renderStage(activeStage - 1); };
+  $("step-next").onclick = () => { if (activeStage < STG.length - 1) renderStage(activeStage + 1); };
+
+  renderStage(0);
+}
+
+/* =====================================================================
+   SECTION 4: MODEL LAB & CONFUSION MATRIX INSPECTOR
+   ===================================================================== */
+function openCellModal(modelKey, actualIdx, predIdx) {
+  const model = M[modelKey];
+  const count = model.cm[actualIdx][predIdx];
+  const totalActual = model.cm[actualIdx].reduce((a, b) => a + b, 0);
+  const pct = ((count / totalActual) * 100).toFixed(1);
+  const isCorrect = actualIdx === predIdx;
+
+  $("modal-title").textContent = `${model.n}: Actual ${LAB[actualIdx]} → Predicted ${LAB[predIdx]}`;
+  $("modal-body").innerHTML = `
+    <div style="background:var(--surface-2);padding:14px;border-radius:var(--radius-sm);margin-bottom:14px">
+      <div style="font-size:1.6rem;font-weight:800;color:${isCorrect ? 'var(--high)' : 'var(--low)'}">
+        ${fx(count)} players (${pct}%)
+      </div>
+      <div class="note">Total actual ${LAB[actualIdx]} test cases: ${fx(totalActual)}</div>
+    </div>
+    <p>
+      ${isCorrect 
+        ? `<strong>Successful Classification:</strong> The model accurately identified ${LAB[actualIdx]} tier players based on overall passing density, penalty box penetration, and minute consistency.`
+        : `<strong>Misclassification Pattern:</strong> Players who fall near the ${LAB[actualIdx]}/${LAB[predIdx]} boundary often possess elite per-90 rate metrics but slightly lower total cumulative volume (e.g. 1,000–1,400 minutes), causing tree splits on <code>Min</code> and <code>PPA</code> to pull the prediction into ${LAB[predIdx]}.`
+      }
+    </p>
+    <div style="margin-top:10px;font-size:0.85rem;color:var(--text-muted)">
+      Severe misclassifications (Low classified as High, or High classified as Low) are extremely rare in ${model.n} (less than 0.5% of samples).
+    </div>
+  `;
+  $("error-modal").classList.add("open");
+}
+
+function closeModal() {
+  $("error-modal").classList.remove("open");
+}
+$("error-modal").onclick = e => {
+  if (e.target.id === "error-modal") closeModal();
+};
+
+function renderLab(mode) {
+  const models = mode === "cmp" ? ["rf", "xg"] : [mode];
+  const theme = getThemeColors();
+
+  $("model-lab-container").innerHTML = `
+    <div class="${models.length > 1 ? 'g2' : ''}">
+      ${models.map(k => {
+        const m = M[k];
+        return `
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <span class="badge ${k === 'rf' ? 'blue' : 'gold'}">${m.n}</span>
+                <h3 style="margin:4px 0 0;font-size:1.8rem;font-weight:800">${m.acc.toFixed(2)}%</h3>
+              </div>
+              <span class="note">Accuracy on 1,793 test rows</span>
+            </div>
+
+            <!-- Classification Report Table -->
+            <div class="data-table-wrap" style="margin:14px 0">
+              <table class="styled-table">
+                <thead>
+                  <tr>
+                    <th>Class</th>
+                    <th>Precision</th>
+                    <th>Recall</th>
+                    <th>F1-Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${m.cls.map((r, i) => `
+                    <tr>
+                      <td style="color:${LC[i]}">${LAB[i]}</td>
+                      <td>${r[0].toFixed(2)}</td>
+                      <td>${r[1].toFixed(2)}</td>
+                      <td>${r[2].toFixed(2)}</td>
+                    </tr>
+                  `).join("")}
+                  <tr style="border-top:2px solid var(--border);font-weight:600">
+                    <td>Macro Avg</td>
+                    <td>${m.mac[0].toFixed(2)}</td>
+                    <td>${m.mac[1].toFixed(2)}</td>
+                    <td>${m.mac[2].toFixed(2)}</td>
+                  </tr>
+                  <tr style="font-weight:600">
+                    <td>Weighted Avg</td>
+                    <td>${m.wt[0].toFixed(2)}</td>
+                    <td>${m.wt[1].toFixed(2)}</td>
+                    <td>${m.wt[2].toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Interactive Confusion Matrix Grid -->
+            <div style="margin-top:16px">
+              <div style="font-size:0.8rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">
+                Confusion Matrix (Click cells for insights)
+              </div>
+              <table class="cm-table">
+                <tr>
+                  <th></th>
+                  <th colspan="3" style="font-size:0.75rem;letter-spacing:0.04em">PREDICTED CLASS</th>
+                </tr>
+                <tr>
+                  <th style="font-size:0.75rem">ACTUAL</th>
+                  ${LAB.map(l => `<th>${l}</th>`).join("")}
+                </tr>
+                ${m.cm.map((row, actualIdx) => {
+                  const rowSum = row.reduce((a, b) => a + b, 0);
+                  return `
+                    <tr>
+                      <td style="font-weight:700;color:${LC[actualIdx]}">${LAB[actualIdx]}</td>
+                      ${row.map((val, predIdx) => {
+                        const isCorrect = actualIdx === predIdx;
+                        const pct = ((val / rowSum) * 100).toFixed(0);
+                        const bg = isCorrect
+                          ? `rgba(16,185,129, ${0.12 + (val / rowSum) * 0.55})`
+                          : `rgba(239,68,68, ${0.06 + (val / rowSum) * 0.65})`;
+                        return `
+                          <td class="cell" style="background:${bg}" onclick="openCellModal('${k}', ${actualIdx}, ${predIdx})">
+                            <div class="cm-num">${val}</div>
+                            <div class="cm-pct">${pct}%</div>
+                          </td>
+                        `;
+                      }).join("")}
+                    </tr>
+                  `;
+                }).join("")}
+              </table>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+/* =====================================================================
+   SECTION 5: FEATURE INTELLIGENCE
+   ===================================================================== */
+const FState = { v: "bars", m: "both", r: "av", n: "15", q: "" };
+
+function renderSpotlightFeature(featureKey) {
+  const item = FI.find(x => x.f === featureKey) || FI[0];
+  const rfRank = [...FI].sort((a, b) => b.rf - a.rf).findIndex(x => x.f === item.f) + 1;
+  const xgRank = [...FI].sort((a, b) => b.xg - a.xg).findIndex(x => x.f === item.f) + 1;
+  const rankDiff = rfRank - xgRank;
+
+  $("fi-spotlight").innerHTML = `
+    <div class="panel-header">
+      <div>
+        <span class="badge blue">${item.cat} Metric</span>
+        <h3 style="margin:4px 0 0;font-size:1.4rem">${item.name} (<code>${item.f}</code>)</h3>
+      </div>
+      <span class="note">Click any chart bar or scatter point to inspect</span>
+    </div>
+    <p style="margin:0 0 16px;color:var(--text-muted)">${item.desc}</p>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div style="background:var(--surface-2);padding:14px;border-radius:var(--radius-sm)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <strong>Random Forest Weight:</strong>
+          <span class="mono">${item.rf.toFixed(4)} (Rank #${rfRank})</span>
+        </div>
+        <div class="meter-bar">
+          <div class="meter-fill" style="width:${(item.rf / 0.17) * 100}%;background:${RF}"></div>
+        </div>
+      </div>
+
+      <div style="background:var(--surface-2);padding:14px;border-radius:var(--radius-sm)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <strong>XGBoost Weight:</strong>
+          <span class="mono">${item.xg.toFixed(4)} (Rank #${xgRank})</span>
+        </div>
+        <div class="meter-bar">
+          <div class="meter-fill" style="width:${(item.xg / 0.17) * 100}%;background:${XG}"></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="note" style="margin-top:14px">
+      <strong>Model Agreement Diagnosis:</strong>
+      ${Math.abs(rankDiff) <= 2
+        ? "High model consensus: Both Random Forest and XGBoost prioritize this statistic similarly."
+        : rankDiff > 0
+          ? `XGBoost prioritizes this feature ${rankDiff} places higher than Random Forest, leveraging deep non-linear interaction with final-third volume.`
+          : `Random Forest weights this feature ${-rankDiff} positions higher, utilizing bag-of-features variance reduction across independent trees.`
+      }
+    </p>
+  `;
+}
+
+function renderFI() {
+  let list = [...FI];
+  if (FState.q) {
+    const query = FState.q.toLowerCase();
+    list = list.filter(x => x.f.toLowerCase().includes(query) || x.name.toLowerCase().includes(query));
+  }
+  list.sort((a, b) => b[FState.r] - a[FState.r]);
+  const count = FState.n === "All" ? list.length : Math.min(list.length, +FState.n);
+  const displayed = list.slice(0, count);
+  const theme = getThemeColors();
+
+  if (FState.v === "bars") {
+    $("ch-fi").style.display = "block";
+    $("fi-table-wrap").style.display = "none";
+    $("ch-fi").style.height = `${Math.max(340, displayed.length * 34 + 80)}px`;
+
+    const series = [];
+    if (FState.m === "both" || FState.m === "rf") {
+      series.push({
+        name: "Random Forest",
+        type: "bar",
+        data: displayed.map(r => r.rf),
+        itemStyle: { color: RF, borderRadius: [0, 4, 4, 0] },
+        barMaxWidth: 16
+      });
+    }
+    if (FState.m === "both" || FState.m === "xg") {
+      series.push({
+        name: "XGBoost",
+        type: "bar",
+        data: displayed.map(r => r.xg),
+        itemStyle: { color: XG, borderRadius: [0, 4, 4, 0] },
+        barMaxWidth: 16
+      });
+    }
+
+    ch("ch-fi", {
+      grid: { left: 10, right: 60, top: 30, bottom: 20, containLabel: true },
+      legend: { top: 0, textStyle: { color: theme.text } },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        formatter: a => {
+          const item = displayed.find(x => x.f === a[0].name);
+          return `<strong>${item.name} (${item.f})</strong><br>
+                  RF: <strong>${item.rf.toFixed(4)}</strong><br>
+                  XGBoost: <strong>${item.xg.toFixed(4)}</strong><br>
+                  Average: <strong>${item.av.toFixed(4)}</strong>`;
+        }
+      },
+      xAxis: {
+        type: "value",
+        name: "Importance",
+        axisLabel: { color: theme.muted },
+        splitLine: { lineStyle: { color: theme.border, type: "dashed" } }
+      },
+      yAxis: {
+        type: "category",
+        inverse: true,
+        data: displayed.map(r => r.f),
+        axisLabel: { color: theme.text, fontWeight: 600 }
+      },
+      series
+    });
+
+    if (C["ch-fi"]) {
+      C["ch-fi"].off("click");
+      C["ch-fi"].on("click", p => renderSpotlightFeature(p.name));
+    }
+
+  } else if (FState.v === "agree") {
+    $("ch-fi").style.display = "block";
+    $("fi-table-wrap").style.display = "none";
+    $("ch-fi").style.height = "520px";
+
+    ch("ch-fi", {
+      grid: { left: 20, right: 40, top: 30, bottom: 50, containLabel: true },
+      tooltip: {
+        trigger: "item",
+        formatter: p => `<strong>${p.value[2]}</strong><br>RF Weight: ${p.value[0].toFixed(4)}<br>XGB Weight: ${p.value[1].toFixed(4)}`
+      },
+      xAxis: {
+        type: "value",
+        name: "Random Forest Importance",
+        nameLocation: "middle",
+        nameGap: 30,
+        axisLabel: { color: theme.muted },
+        splitLine: { lineStyle: { color: theme.border, type: "dashed" } }
+      },
+      yAxis: {
+        type: "value",
+        name: "XGBoost Importance",
+        nameLocation: "middle",
+        nameGap: 40,
+        axisLabel: { color: theme.muted },
+        splitLine: { lineStyle: { color: theme.border, type: "dashed" } }
+      },
+      series: [
+        {
+          type: "scatter",
+          symbolSize: 14,
+          itemStyle: { color: RF, opacity: 0.85 },
+          emphasis: { scale: 1.8 },
+          data: FI.map(r => [r.rf, r.xg, r.f]),
+          label: {
+            show: true,
+            formatter: p => p.value[2],
+            position: "right",
+            color: theme.text,
+            fontWeight: 600,
+            fontSize: 12
+          },
+          markLine: {
+            silent: true,
+            symbol: "none",
+            lineStyle: { color: theme.muted, type: "dashed", width: 1.5 },
+            data: [[{ coord: [0, 0] }, { coord: [0.18, 0.18] }]]
+          }
+        }
+      ]
+    });
+
+    if (C["ch-fi"]) {
+      C["ch-fi"].off("click");
+      C["ch-fi"].on("click", p => renderSpotlightFeature(p.value[2]));
+    }
+
+  } else if (FState.v === "table") {
+    $("ch-fi").style.display = "none";
+    $("fi-table-wrap").style.display = "block";
+
+    $("fi-table-wrap").innerHTML = `
+      <table class="styled-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Feature</th>
+            <th>Category</th>
+            <th>Full Description</th>
+            <th>RF Weight</th>
+            <th>XGB Weight</th>
+            <th>Avg Weight</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${displayed.map((item, idx) => `
+            <tr style="cursor:pointer" onclick="renderSpotlightFeature('${item.f}')">
+              <td style="color:var(--primary)">#${idx + 1}</td>
+              <td><code>${item.f}</code></td>
+              <td><span class="badge">${item.cat}</span></td>
+              <td>${item.name}</td>
+              <td class="mono">${item.rf.toFixed(5)}</td>
+              <td class="mono">${item.xg.toFixed(5)}</td>
+              <td class="mono" style="font-weight:700">${item.av.toFixed(5)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  $("fi-notes").textContent = FState.v === "agree"
+    ? "Points along the diagonal dashed line represent perfect parity between models. Features above the line (like PPA) are prioritized more by XGBoost; features below (like Crs) are leaned on more by Random Forest."
+    : "Importance represents relative tree Gini split contribution summing to 1.0 per model.";
+}
+
+function initFI() {
+  seg("seg-fi-view", [["bars", "Grouped Bars"], ["agree", "Agreement Scatter"], ["table", "Data Table"]], "bars", v => {
+    FState.v = v;
+    renderFI();
+  });
+  seg("seg-fi-model", [["both", "Combined"], ["rf", "Random Forest"], ["xg", "XGBoost"]], "both", v => {
+    FState.m = v;
+    renderFI();
+  });
+  seg("seg-fi-rank", [["av", "Average"], ["rf", "Random Forest"], ["xg", "XGBoost"]], "av", v => {
+    FState.r = v;
+    renderFI();
+  });
+  seg("seg-fi-n", [["5", "Top 5"], ["10", "Top 10"], ["15", "Top 15"], ["All", "All 23"]], "15", v => {
+    FState.n = v;
+    renderFI();
+  });
+
+  $("fi-search").oninput = e => {
+    FState.q = e.target.value.trim();
+    renderFI();
+  };
+
+  renderSpotlightFeature("PPA");
+  renderFI();
+}
+
+/* =====================================================================
+   SECTION 6: MODEL EVALUATION
+   ===================================================================== */
+function initEvaluation() {
+  const theme = getThemeColors();
+
+  // Accuracy Bar
+  ch("ch-acc", {
+    grid: { left: 10, right: 60, top: 20, bottom: 20, containLabel: true },
+    tooltip: { trigger: "item", formatter: p => `${p.name}: <strong>${p.value.toFixed(2)}%</strong>` },
+    xAxis: {
+      type: "value",
+      min: 0,
+      max: 100,
+      axisLabel: { color: theme.muted },
+      splitLine: { lineStyle: { color: theme.border, type: "dashed" } }
+    },
+    yAxis: {
+      type: "category",
+      inverse: true,
+      data: ["Random Forest", "XGBoost"],
+      axisLabel: { color: theme.text, fontWeight: 700 }
+    },
+    series: [{
+      type: "bar",
+      barMaxWidth: 36,
+      data: [
+        { value: 65.37, itemStyle: { color: RF, borderRadius: [0, 4, 4, 0] } },
+        { value: 67.21, itemStyle: { color: XG, borderRadius: [0, 4, 4, 0] } }
+      ],
+      label: { show: true, position: "right", color: theme.text, fontWeight: 700, formatter: p => p.value.toFixed(2) + "%" }
+    }]
+  });
+
+  // Precision, Recall, F1
+  function renderPRF(metricIdx) {
+    const metricName = ["Precision", "Recall", "F1-Score"][metricIdx];
+    ch("ch-prf", {
+      grid: { left: 10, right: 20, top: 30, bottom: 20, containLabel: true },
+      legend: { top: 0, textStyle: { color: theme.text } },
+      tooltip: { trigger: "axis" },
+      xAxis: {
+        type: "category",
+        data: LAB,
+        axisLabel: { color: theme.text, fontWeight: 600 }
+      },
+      yAxis: {
+        type: "value",
+        min: 0,
+        max: 1,
+        name: metricName,
+        axisLabel: { color: theme.muted },
+        splitLine: { lineStyle: { color: theme.border, type: "dashed" } }
+      },
+      series: ["rf", "xg"].map(k => ({
+        name: M[k].n,
+        type: "bar",
+        itemStyle: { color: M[k].c, borderRadius: [4, 4, 0, 0] },
+        data: M[k].cls.map(row => row[metricIdx]),
+        label: { show: true, position: "top", color: theme.muted, fontSize: 11, formatter: p => p.value.toFixed(2) }
+      }))
+    });
+  }
+
+  seg("seg-eval-metric", [["0", "Precision"], ["1", "Recall"], ["2", "F1-Score"]], "1", idx => renderPRF(+idx));
+  renderPRF(1);
+
+  // Confusion Matrix Heatmap
+  function renderCM(modelKey) {
+    const model = M[modelKey];
+    ch("ch-cm", {
+      grid: { left: 20, right: 30, top: 40, bottom: 40, containLabel: true },
+      tooltip: {
+        formatter: p => {
+          const act = LAB[p.value[1]], prd = LAB[p.value[0]];
+          const val = p.value[2];
+          const total = model.cm[p.value[1]].reduce((a, b) => a + b, 0);
+          return `${model.n}<br>Actual: <strong>${act}</strong><br>Predicted: <strong>${prd}</strong><br>Count: <strong>${val}</strong> (${fx(100 * val / total, 1)}%)`;
+        }
+      },
+      xAxis: {
+        type: "category",
+        name: "Predicted Class",
+        nameLocation: "middle",
+        nameGap: 28,
+        data: LAB,
+        position: "top",
+        axisLabel: { color: theme.text, fontWeight: 700 }
+      },
+      yAxis: {
+        type: "category",
+        name: "Actual Class",
+        inverse: true,
+        data: LAB,
+        axisLabel: { color: theme.text, fontWeight: 700 }
+      },
+      series: [{
+        type: "heatmap",
+        itemStyle: { borderColor: theme.bg, borderWidth: 3, borderRadius: 6 },
+        label: { show: true, fontSize: 20, fontWeight: 700, color: theme.text },
+        data: model.cm.flatMap((row, actIdx) => row.map((val, predIdx) => {
+          const total = row.reduce((a, b) => a + b, 0);
+          const isCorrect = actIdx === predIdx;
+          const bg = isCorrect
+            ? `rgba(16,185,129, ${0.15 + (val / total) * 0.6})`
+            : `rgba(239,68,68, ${0.08 + (val / total) * 0.75})`;
+          return { value: [predIdx, actIdx, val], itemStyle: { color: bg } };
+        }))
+      }]
+    });
+  }
+
+  seg("seg-cm-model", [["rf", "Random Forest"], ["xg", "XGBoost"]], "rf", renderCM);
+  renderCM("rf");
+}
+
+/* =====================================================================
+   THEME TOGGLE & EXPO MODE
+   ===================================================================== */
+function initTheme() {
+  const toggleBtn = $("theme-toggle");
+  const icon = $("theme-icon");
+  
+  function applyTheme(isDark) {
+    document.body.classList.toggle("dark", isDark);
+    icon.textContent = isDark ? "☀️" : "🌙";
+    localStorage.setItem("theme_dark", isDark ? "1" : "0");
+
+    // Seamlessly re-render charts to adopt new theme palette
+    drawOverview();
+    renderLab($("seg-model-view").querySelector("[aria-pressed=true]")?.dataset.v || "cmp");
+    renderFI();
+    initEvaluation();
+  }
+
+  let saved = localStorage.getItem("theme_white_set");
+  if (!saved) {
+    localStorage.setItem("theme_dark", "0");
+    localStorage.setItem("theme_white_set", "1");
+  }
+  applyTheme(localStorage.getItem("theme_dark") === "1");
+
+  toggleBtn.onclick = () => {
+    applyTheme(!document.body.classList.contains("dark"));
+  };
+}
+
+let isExpo = false;
+$("btn-expo").onclick = e => {
+  isExpo = !isExpo;
+  document.body.style.fontSize = isExpo ? "18px" : "15px";
+  e.target.textContent = isExpo ? "Exit Expo Mode" : "Expo Mode";
+  e.target.classList.toggle("primary", isExpo);
+  setTimeout(() => {
+    Object.values(C).forEach(chart => chart.resize());
+  }, 100);
+};
+
+// Handle window resizing with debounce (prevents scroll resize thrashing)
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    Object.values(C).forEach(chart => chart.resize());
+  }, 120);
+});
+
+function initAll() {
+  initTheme();
+  drawOverview();
+  initDataset();
+  initEngine();
+  initPipeline();
+  
+  seg("seg-model-view", [["cmp", "Compare Models"], ["rf", "Random Forest"], ["xg", "XGBoost"]], "cmp", v => {
+    renderLab(v);
+  });
+  renderLab("cmp");
+
+  initFI();
+  initEvaluation();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAll);
+} else {
+  initAll();
+}
+</script>
+</body>
+</html>
